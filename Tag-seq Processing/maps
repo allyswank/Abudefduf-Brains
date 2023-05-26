@@ -1,0 +1,45 @@
+#!/bin/bash
+
+source /opt/asn/etc/asn-bash-profiles-special/modules.sh
+module load bowtie2/2.2.9
+
+bowtie2 --local -x Asax_index.fa -U HW_LC_01.fastq.trim -S HW_LC_01.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_LC_03.fastq.trim -S C_LC_03.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_LC_06.fastq.trim -S C_LC_06.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_LC_10.fastq.trim -S HW_LC_10.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_HC_04.fastq.trim -S C_HC_04.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_HC_08.fastq.trim -S C_HC_08.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_HC_05.fastq.trim -S C_HC_05.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_HC_09.fastq.trim -S HW_HC_09.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_LC_02.fastq.trim -S HW_LC_02.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_LC_02.fastq.trim -S C_LC_02.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_LC_04.fastq.trim -S HW_LC_04.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_HC_10.fastq.trim -S C_HC_10.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_HC_03.fastq.trim -S HW_HC_03.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_LC_09.fastq.trim -S C_LC_09.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_HC_09.fastq.trim -S C_HC_09.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_LC_08.fastq.trim -S C_LC_08.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_LC_05.fastq.trim -S C_LC_05.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_LC_07.fastq.trim -S HW_LC_07.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_HC_02.fastq.trim -S HW_HC_02.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_HC_02.fastq.trim -S C_HC_02.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_HC_10.fastq.trim -S HW_HC_10.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_HC_01.fastq.trim -S HW_HC_01.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_LC_01.fastq.trim -S C_LC_01.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_HC_07.fastq.trim -S C_HC_07.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_HC_08.fastq.trim -S HW_HC_08.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_LC_05.fastq.trim -S HW_LC_05.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_LC_08.fastq.trim -S HW_LC_08.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_LC_04.fastq.trim -S C_LC_04.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_LC_06.fastq.trim -S HW_LC_06.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_HC_01.fastq.trim -S C_HC_01.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_LC_03.fastq.trim -S HW_LC_03.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_HC_05.fastq.trim -S HW_HC_05.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_HC_07.fastq.trim -S HW_HC_07.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_LC_10.fastq.trim -S C_LC_10.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_LC_09.fastq.trim -S HW_LC_09.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_HC_06.fastq.trim -S C_HC_06.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_HC_03.fastq.trim -S C_HC_03.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_HC_06.fastq.trim -S HW_HC_06.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U C_LC_07.fastq.trim -S C_LC_07.fastq.trim.sam --no-hd --no-sq --no-unal -k 5
+bowtie2 --local -x Asax_index.fa -U HW_HC_04.fastq.trim -S HW_HC_04.fastq.trim.sam --no-hd --no-sq --no-unal -k 5

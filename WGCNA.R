@@ -1,285 +1,386 @@
-#Link to tutorial: https://alexslemonade.github.io/refinebio-examples/04-advanced-topics/network-analysis_rnaseq_01_wgcna.html#3_Using_a_different_refinebio_dataset_with_this_analysis
 #############################################################################
 ############################## WGCNA - RNA-seq ##############################
 ##################### Abudefduf saxatilis - Full Brains #####################
 #############################################################################
 
-#Getting set up! Specifying file paths to working data. 
+#https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/Consensus-RelateModsToTraits.pdf
 
-setwd("C:/Users/allys/Box/Auburn/Bernal Lab/Thesis/Data/WGCNA")
+#this is the WGCNA for Abudefduf saxatilis - Thermal and Habitat stress 
 
-# Create the data folder if it doesn't exist
-if (!dir.exists("raw-data")) {
-  dir.create("raw-data")
-}
+#installing WGCNA again
+#install.packages(c("matrixStats", "Hmisc", "splines", "foreach", "doParallel", "fastcluster", "dynamicTreeCut", "survival"))
+#install.packages("BiocManager")
+#BiocManager::install("WGCNA")
+#BiocManager::install("DESeq2")
 
-# Define the file path to the plots directory
-plots_dir <- "outputs"
+setwd("C:/Users/allys/Box/Bernal_lab/Ally/Chapter1/Analyses/WGCNA")
+library('DESeq2')
+library('pheatmap')
+library('RColorBrewer')
+library('ggplot2')
+library('WGCNA')
+library('tidyverse')
 
-# Create the plots folder if it doesn't exist
-if (!dir.exists(plots_dir)) {
-  dir.create(plots_dir)
-}
+options(stringsAsFactors = FALSE)
 
-# Define the file path to the results directory
-results_dir <- "wgcna-results"
+x<-read.csv('allcounts.txt', row.names="Gene", header=T, sep='\t')
+x <- x[,colnames(x)!="X"]
 
-# Create the results folder if it doesn't exist
-if (!dir.exists(results_dir)) {
-  dir.create(results_dir)
-}
-
-# Define the file path to the data directory
-# Replace with the path of the folder the files will be in
-data_dir <- file.path("raw-data")
-
-# Declare the file path to the gene expression matrix file
-# inside directory saved as `data_dir`
-# Replace with the path to your dataset file
-data_file <- file.path(data_dir, "allcounts.txt")
-
-# Declare the file path to the metadata file
-# inside the directory saved as `data_dir`
-# Replace with the path to your metadata file
-metadata_file <- file.path(data_dir, "a.saxatilis_attributes.txt")
-
-#Double check that files exist where they should
-file.exists(data_file)
-file.exists(metadata_file)
-
-#installing packages and loading libraries
-if (!("DESeq2" %in% installed.packages())) {
-  # Install this package if it isn't installed yet
-  BiocManager::install("DESeq2", update = FALSE)
-}
-
-if (!("impute" %in% installed.packages())) {
-  # Install this package if it isn't installed yet
-  BiocManager::install("impute")
-}
-
-if (!("WGCNA" %in% installed.packages())) {
-  # Install this package if it isn't installed yet
-  install.packages("WGCNA")
-}
-
-if (!("GO.db" %in% installed.packages())) {
-  # Install this package if it isn't installed yet
-  BiocManager::install("GO.db")
-}
-
-if (!("preprocessCore" %in% installed.packages())) {
-  # Install this package if it isn't installed yet
-  BiocManager::install("preprocessCore")
-}
-
-if (!("ggforce" %in% installed.packages())) {
-  # Install this package if it isn't installed yet
-  install.packages("ggforce")
-}
-
-if (!("ComplexHeatmap" %in% installed.packages())) {
-  # Install this package if it isn't installed yet
-  BiocManager::install("ComplexHeatmap")
-}
-
-if (!("limma" %in% installed.packages())) {
-  # Install this package if it isn't installed yet
-  BiocManager::install("limma")
-}
+head(x)
+nrow(x)#119863
 
 
-# Attach the DESeq2 library
-library(DESeq2)
+#filter low counts
+x$filtr<-apply(x, 1, function(k) mean(k > 10)) > 0.5
+x<-x[!(x$filtr=="FALSE"),]
+nrow(x) #10658
 
-# We will need this so we can use the pipe: %>%
-library(magrittr)
+#This is the code to only analyze the 50% with the highest variation
+#counts$variance = apply(counts, 1, var)
+#counts2 = counts[counts$variance >= quantile(counts$variance, c(.50)), ] #50% most variable genes
+#counts2$variance <- NULL
+#counts=counts2
 
-# We'll need this for finding gene modules
-library(WGCNA)
+x$filtr=NULL
+#outlier removal if necessary
 
-# We'll be making some plots
-library(ggplot2)
-
-#Run linear model on each module
-library(limma)
+metaData <- read.csv('a.saxatilis_attributes.csv', header = TRUE, sep = ",") 
+head(metaData)
+nrow(metaData)
 
 
-#############################################################################
-#Reading in data and formatting for WGCNA
+totalCounts=colSums(x) 
+min(totalCounts) #910180
+max(totalCounts) #2033474
+mean(totalCounts) #1588113
 
-#Read in metadata TSV file
-metadata <- readr::read_delim(metadata_file, delim = "\t")
-df <- readr::read_delim(data_file, delim = "\t") %>%
-  # Here we are going to store the gene IDs as row names so that we can have a numeric matrix to perform calculations on later
-  tibble::column_to_rownames("Gene")
-# I don't know why this extra column keeps apperaring??
-df <- df[,colnames(df)!="...42"]
-
-# Make the data in the order of the metadata
-df <- df %>%
-  dplyr::select(metadata$FishID)
-# Check if this is in the same order
-all.equal(colnames(df), metadata$FishID)
-
-#############################################################################
-#Preparing data for DESeq2
-
-# The next DESeq2 functions need the values to be converted to integers
-df <- round(df) %>%
-  # The next steps require a data frame and round() returns a matrix
-  as.data.frame() %>%
-  # Only keep rows that have total counts above the cutoff
-  dplyr::filter(rowSums(.) >= 75)
-
-metadata <- metadata %>%
-  dplyr::mutate(
-    treatment = dplyr::case_when(
-      # Create our new variable based on treatment containing CLC/CHC/HWHC/HWLC
-      stringr::str_detect(Treatment, "CHC") ~ "control / high complexity",
-      stringr::str_detect(Treatment, "CLC") ~ "control / low complexity",
-      stringr::str_detect(Treatment, "HWHC") ~ "heatwave / high complexity",
-      stringr::str_detect(Treatment, "HWLC") ~ "heatwave / low complexity",
-    ),
-    # It's easier for future items if this is already set up as a factor
-    treatment = as.factor(treatment)
-  )
-#Because "accute illness" data were collected first, they should be ordered first
-#This will be different with brain data
-levels(metadata$treatment)
-
-# In this chunk of code, we will not provide a specific model to the design argument 
-#because we are not performing a differential expression analysis.
 dds <- DESeqDataSetFromMatrix(
-  countData = df, # Our prepped data frame with counts
-  colData = metadata, # Data frame with annotation for our samples
+  countData = x, # Our prepped data frame with counts
+  colData = metaData, # Data frame with annotation for our samples
   design = ~1 # Here we are not specifying a model
 )
+dds<-dds[rowSums(counts(dds))>0,]
+summary(dds) #10658
 
-# Normalize and transform the data in the `DESeqDataSet` object using the `vst()`
-# function from the `DESEq2` R package
-dds_norm <- vst(dds)
 
-##############################################################################
-###########CHECK FOR OUTLIERS HERE!!!!!
+#to obtain variance stabilized data follow: 
+head(dds)
+vsd=vst(dds)
+head(vsd)
 
-gsg = goodSamplesGenes(df, verbose = 3);
+# Check that the data has the correct format for many functions operating on multiple sets:
+#WGCNA THE DATA NEEDS TO BE TRANSPOSED to make dendrogram
+
+gsg = goodSamplesGenes(x, verbose = 3);
 gsg$allOK
-#TRUE
-#All genes have passed the cuts, no outliers to be removed
-  #If false, those genes should be removed
 
-##############################################################################
-
-# Retrieve the normalized data from the `DESeqDataSet`
-normalized_counts <- assay(dds_norm) %>%
+xx <- assay(vsd) %>%
   t() # Transpose this data
 
-#To identify which genes are in the same modules, WGCNA first creates a weighted network to define 
-#which genes are near each other. The measure of "adjacency" it uses is based on the correlation matrix, 
-#but requires the definition of a threshold value, which in turn depends on a "power" parameter that defines 
-#the exponent used when transforming the correlation values. The choice of power parameter will affect 
-#the number of modules identified.
-sft <- pickSoftThreshold(normalized_counts,
-                         dataIsExpr = TRUE,
-                         corFnc = cor,
-                         networkType = "signed"
-)
+dim(vsd) #10658    40
+dim(xx) #40 10658
+rownames(xx) #make sure the rownames are actually 
 
-#calculate a measure of the model fit, the signed R2, and make that a new variable.
-sft_df <- data.frame(sft$fitIndices) %>%
-  dplyr::mutate(model_fit = -sign(slope) * SFT.R.sq)
-#Now, let's plot the model fitting by the power soft threshold so we can decide on a soft-threshold for power
-ggplot(sft_df, aes(x = Power, y = model_fit, label = Power)) +
-  # Plot the points
-  geom_point() +
-  # We'll put the Power labels slightly above the data points
-  geom_text(nudge_y = 0.1) +
-  # We will plot what WGCNA recommends as an R^2 cutoff
-  geom_hline(yintercept = 0.90, col = "red") +
-  # Just in case our values are low, we want to make sure we can still see the 0.80 level
-  ylim(c(min(sft_df$model_fit), 1.05)) +
-  # We can add more sensible labels for our axis
-  xlab("Soft Threshold (power)") +
-  ylab("Scale Free Topology Model Fit, signed R^2") +
-  ggtitle("Scale independence") +
-  # This adds some nicer aesthetics to our plot
-  theme_classic()
+sampleTree = hclust(dist(xx), method = "average");
+# Plot the sample tree: Open a graphic output window of size 12 by 9 inches
+# The user should change the dimensions if the window is too large or too small.
+sizeGrWindow(12,9)
+#pdf(file = "Plots/sampleClustering.pdf", width = 12, height = 9);
+par(cex = 0.6);
+par(mar = c(0,4,2,0))
+#plot(sampleTree, main = "Sample clustering to detect outliers", sub="", xlab="", cex.lab = 1.5,cex.axis = 1.5, cex.main = 2)
+plot(sampleTree, main = "Sample clustering to detect outliers", sub="", xlab="")
 
-#Creating the gene co-expression modules in WGCNA
-#Use the link at the top of this scrip to understand these parameters further!
-bwnet <- blockwiseModules(normalized_counts,
-                          minModuleSize = 30, # Minimum size of modules
-                          maxBlockSize = 5000, # What size chunks (how many genes) the calculations should be run in
-                          TOMType = "signed", # topological overlap matrix
-                          power = 10, # soft threshold for network construction
-                          #numericLabels = TRUE, # Let's use numbers instead of colors for module labels
-                          randomSeed = 1234, # there's some randomness associated with this calculation
-                          # so we should set a seed
-)
 
-#save our whole results object to an RDS file in case we want to return to our original WGCNA results
-readr::write_rds(bwnet,
-                 file = file.path("wgcna-results", "brain_wgcna_results.RDS")
-)
+traitData = read.csv("a.saxatilis_traits.csv",header=TRUE);
+dim(traitData)
+names(traitData)
 
-#pull out the parts we are most interested in and may want to use use for plotting
-module_eigengenes <- bwnet$MEs
-# Print out a preview
-head(module_eigengenes)
+
+fishID = rownames(xx);
+traitRows = match(fishID, traitData$FishID);
+datTraits = traitData[traitRows, -1];
+rownames(datTraits) = traitData[traitRows, 1];
+collectGarbage();
+
+#store the data in an R function 
+
+save(xx, datTraits, file = "ASax-wgcna-step1.RData")
+
+##To Find blocks of modules 8, use the data that is not transposed 
+# Choose a set of soft-thresholding powers
+lnames= load(file="ASax-wgcna-step1.RData")
+lnames
+exprSize = checkSets(xx, checkStructure = TRUE);
+nSets = exprSize$nSets;
+nSets = checkSets(xx, checkStructure = TRUE)$nSets
+
+powers = c(c(1:10), seq(from = 12, to=20, by=2))
+
+# Call the network topology analysis function
+sft = pickSoftThreshold(xx, powerVector = powers, verbose = 6)
+# Plot the results:
+sizeGrWindow(9, 5)
+par(mfrow = c(1,2));
+cex1 = 0.9;
+# Scale-free topology fit index as a function of the soft-thresholding power
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     xlab="Soft Threshold (power)",ylab="Scale Free Topology Model Fit,signed R^2",type="n",
+     main = paste("Scale independence"));
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     labels=powers,cex=cex1,col="red");
+# this line corresponds to using an R^2 cut-off of h
+abline(h=0.90,col="red")
+# Mean connectivity as a function of the soft-thresholding power
+plot(sft$fitIndices[,1], sft$fitIndices[,5],
+     xlab="Soft Threshold (power)",ylab="Mean Connectivity", type="n",
+     main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
+
+#the curve is initially stabilized at 10 - with xx dataframe
+#build networks
+net = blockwiseModules(xx, power = 10, corType="bicor", networkType = "signed",
+                       TOMType = "signed", minModuleSize = 30,
+                       reassignThreshold = 0, mergeCutHeight = 0.25,
+                       numericLabels = FALSE,
+                       deepSplit = 2,
+                       pamRespectsDendro = F,
+                       saveTOMs = TRUE,
+                       saveTOMFileBase = "ASax-net",
+                       verbose = 5, maxBlockSize = 5000)
+names(net)
+
+
+
+
+moduleLabels = net$colors
+moduleColors = labels2colors(net$colors)
+consMEs = net$MEs;
+consTree = net$dendrograms[[1]]
+
+sizeGrWindow(12, 9)
+# Convert labels to colors for plotting
+mergedColors = labels2colors(net$colors)
+# Plot the dendrogram and the module colors underneath
+plotDendroAndColors(net$dendrograms[[1]], mergedColors[net$blockGenes[[1]]],
+                    "Module colors",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+
+save(consMEs, moduleLabels, moduleColors, consTree, file = "ASax-NetworkConstruction-auto.RData")
+######## 
+#Clusters to All Samples (not very clear pattern)
+module_df <- data.frame(gene_id = names(net$colors),
+                        colors = labels2colors(net$colors))
+module_df
+module_df[1:5,]
+write.table(module_df, file ="ASax-gene_modules.txt",sep = "\t", quote=FALSE)
+
+write.csv(module_df, file="gene_modules.csv", quote = FALSE)
+
+MEs0 <- moduleEigengenes(xx, mergedColors)$eigengenes
+MEs0 <- orderMEs(MEs0)
+module_order = names(MEs0) %>% gsub("ME","", .)
+MEs0$treatment = row.names(MEs0)
+
+mME = MEs0 %>% pivot_longer(-treatment) %>% mutate(
+  name = gsub("ME", "", name),
+  name = factor(name, levels = module_order))
+
+mME %>% ggplot(., aes(x=treatment, y=name, fill=value)) +
+  geom_tile() +
+  theme_bw() +
+  scale_fill_gradient2(
+    low = "blue",
+    high = "red",
+    mid = "white",
+    midpoint = 0,
+    limit = c(-1,1)) +
+  theme(axis.text.x = element_text(angle=90)) +
+  labs(title = "Module-trait Relationships", y = "Modules", fill="corr")
+
+########
+#Cluster Dendrogram Dissimilarity and Merged Dynamic
+
+softPower = 10; #10 with outliers included
+adjacency = adjacency(xx, power = softPower, type='signed');
+TOM = TOMsimilarity(adjacency, TOMType='signed');
+dissTOM = 1-TOM
+
+# Call the hierarchical clustering function
+geneTree = hclust(as.dist(dissTOM), method = "average");
+# Plot the resulting clustering tree (dendrogram)
+#sizeGrWindow(12,9)
+#pdf(file=Dendrogram_signed_BM10.pdf, width=20, height=20)
+plot(geneTree, xlab="", sub="", main = "Gene clustering on TOM-based dissimilarity",
+     labels = FALSE, hang = 0.04);
+#dev.off()
+minModuleSize = 30;
+# Module identification using dynamic tree cut:
+dynamicMods = cutreeDynamic(dendro = geneTree, distM = dissTOM,
+                            deepSplit = 2, pamRespectsDendro = FALSE,
+                            minClusterSize = minModuleSize);
+table(dynamicMods)
+#dynamicMods
+
+
+# Convert numeric lables into colors
+dynamicColors = labels2colors(dynamicMods)
+table(dynamicColors)
+#dynamicColors
+
+# Plot the dendrogram and colors underneath
+#sizeGrWindow(8,6)
+#pdf(file=Dendrogram_signed_BM10_colors.pdf, width=20, height=20)
+plotDendroAndColors(geneTree, dynamicColors, "Dynamic Tree Cut",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05,
+                    main = "Gene dendrogram and module colors")
+#dev.off()
+
+# Calculate eigengenes
+MEList = moduleEigengenes(xx, colors = dynamicColors)
+MEList$eigengenes #gives you the eigenes by sample 
+MEs = MEList$eigengenes
+# Calculate dissimilarity of module eigengenes
+MEDiss = 1-cor(MEs);
+# Cluster module eigengenes
+METree = hclust(as.dist(MEDiss), method = "average");
+# Plot the result
+sizeGrWindow(7, 6)
+#pdf(file=ClusteringEigengenes.pdf, width=20, height=20)
+plot(METree, main = "Clustering of module eigengenes",
+     xlab = "", sub = "")
+#dev.off()
+
+MEDissThres = 0.25 
+# Plot the cut line into the dendrogram
+abline(h=MEDissThres, col = "red")
+# Call an automatic merging function
+merge = mergeCloseModules(xx, dynamicColors, cutHeight = MEDissThres, verbose = 3)
+
+# The merged module colors
+mergedColors = merge$colors; #Change "net" to "merge" to do the rest with the merged colors!!!!
+table(mergedColors)
+mergedColors
+# Eigengenes of the new merged modules:
+mergedMEs = merge$newMEs
+
+#sizeGrWindow(12, 9)
+#pdf(file = "DendroAndColors_sft6_bm10.pdf", wi = 9, he = 6)
+plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors),
+                    c("Dynamic Tree Cut", "Merged dynamic"),
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+#dev.off()
+
+# MERGING: Rename to moduleColors that are similar
+moduleColors = mergedColors
+table(moduleColors)
+# Construct numerical labels corresponding to the colors
+colorOrder = c("grey", standardColors(50));
+moduleLabels = match(moduleColors, colorOrder)-1;
+MEs = mergedMEs;
+# Save module colors and labels for use in subsequent parts
+save(MEs, moduleLabels, moduleColors, geneTree, file = "ASax-RNA_WGCNA_networkConstruct_signed.RData")
+# Define numbers of genes and samples
+nGenes = ncol(xx);
+nSamples = nrow(xx);
+# Recalculate MEs with color labels
+MEs0 = moduleEigengenes(xx, moduleColors)$eigengenes 
+MEs = orderMEs(MEs0)
+
+######################
+#correlations of traits with eigengenes
+
+moduleTraitCor = cor(MEs, datTraits, use = "p");
+moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples);
+Colors=sub("ME","",names(MEs))
+
+moduleTraitCor 
+
+## Will display correlations and their p-values
+textMatrix =  paste(signif(moduleTraitCor, 2), "\n(",signif(moduleTraitPvalue, 1), ")", sep = "");
+dim(textMatrix) = dim(moduleTraitCor)
+par(mfrow = c(1,1))
+par(mar=c(1,1,1,1))
+# Display the correlation values within a heatmap plot
+pdf(file="trait-cor-heatmap.pdf", width=11, height=7)
+labeledHeatmap(Matrix = moduleTraitCor,
+               xLabels = names(datTraits),
+               xLabelsAngle = 0,
+               yLabels = names(MEs),
+               ySymbols = names(MEs),
+               colorLabels = FALSE,
+               colors = blueWhiteRed(50),
+               textMatrix = textMatrix,
+               setStdMargins = TRUE,
+               cex.text = 0.5,
+               zlim = c(-1,1),
+               main = paste("Module-trait relationships"))
+dev.off()
+
+MEDiss= 1-cor(MEs)
+METree= flashClust(as.dist(MEDiss), method= "average")
+plot(METree, main= "Clustering of module eigengenes", xlab= "", sub= "")
+
+#################################################################################
+### make heatmap of specific modules of interest
+head(MEs)
 
 #Which modules have biggest differences across treatment groups?
 #First we double check that our samples are still in order.
-all.equal(metadata$FishID, rownames(module_eigengenes))
+all.equal(metaData$FishID, rownames(MEs))
 
 # Create the design matrix from the `treatment` variable
-des_mat <- model.matrix(~ metadata$treatment)
+des_mat <- model.matrix(~ metaData$Treatment)
 
 #Run linear model on each module. 
 #Limma wants our tests to be per row, so we also need to transpose so the eigengenes are rows
 # lmFit() needs a transposed version of the matrix
-fit <- limma::lmFit(t(module_eigengenes), design = des_mat)
+fit <- limma::lmFit(t(MEs), design = des_mat)
 # Apply empirical Bayes to smooth standard errors
 fit <- limma::eBayes(fit)
 
 # Apply multiple testing correction and obtain stats
-stats_df <- limma::topTable(fit, number = ncol(module_eigengenes)) %>%
+stats_df <- limma::topTable(fit, number = ncol(MEs)) %>%
   tibble::rownames_to_column("module")
 
 head(stats_df)
 
-#> head(stats_df)
-#module metadata.treatmentcontrol...low.complexity metadata.treatmentheatwave...high.complexity
-#1   ME24                                 0.00778172                                  -0.26849132
-#2   ME16                                 0.01983513                                   0.26957992
-#3   ME19                                 0.05704955                                   0.29482508
-#4   ME33                                 0.08631761                                  -0.17163507
-#5   ME21                                 0.04386211                                  -0.18271075
-#6   ME20                                -0.07159427                                  -0.09514258
-#metadata.treatmentheatwave...low.complexity       AveExpr         F      P.Value    adj.P.Val
-#1                                  -0.2715858 -3.972517e-17 17.484089 1.662923e-08 6.319107e-07
-#2                                   0.2878170  1.144917e-17 16.489049 3.833141e-08 7.282968e-07
-#3                                   0.2860245 -6.071532e-17 15.586453 8.322950e-08 1.054240e-06
-#4                                  -0.1333027  2.107689e-17  7.456884 2.194162e-04 2.084454e-03
-#5                                  -0.1417468 -8.708854e-17  5.911384 1.211060e-03 9.204057e-03
-#6                                   0.1371540 -2.654127e-17  5.308902 2.404367e-03 1.522766e-02
+
+#retrieve gene list for the modules, can be modified in excel to run GO analyses
+annot=read.table(file="GO_table.tab", header=T, sep='\t')
+probes = colnames(xx)
+probes2annot = match(probes,annot$gene)
+head(probes2annot)
+
+datGS.Traits=data.frame(cor(xx,datTraits,use="p"))
+names(datGS.Traits)=paste("cor",names(datGS.Traits),sep=".")
+datME=moduleEigengenes(xx,moduleColors)$eigengenes
+datKME=signedKME(xx, datME, outputColumnName="MM.")
+datOutput=list(gene=colnames(xx),colors = moduleColors)
+datOutput=as.vector(datOutput)
+datOutput$gene = as.character(datOutput$gene)
+
+datOutput0 = as.data.frame(datOutput)
 
 #As a sanity check, let's use ggplot to see what module XX's eigengene looks like between treatment groups.
 #First we need to set up the module eigengene for this module with the sample metadata labels we need.
-module_lightcyan_df <- module_eigengenes %>%
+module_darkgrey_df <- MEs %>%
   tibble::rownames_to_column("FishName") %>%
   # Here we are performing an inner join with a subset of metadata
-  dplyr::inner_join(metadata %>%
-                      dplyr::select(FishID, treatment),
+  dplyr::inner_join(metaData %>%
+                      dplyr::select(FishID, Treatment),
                     by = c("FishName" = "FishID")
   )
 
 ggplot(
-  module_lightcyan_df,
+  module_darkgrey_df,
   aes(
-    x = treatment,
-    y = MElightcyan,
-    color = treatment
+    x = Treatment,
+    y = MEdarkgrey,
+    color = Treatment
   )
 ) +
   # a boxplot with outlier points hidden (they will be in the sina plot)
@@ -288,28 +389,31 @@ ggplot(
   ggforce::geom_sina(maxwidth = 0.3) +
   theme_classic()
 
-#What genes are a part of module 19?
-#If you want to know which of your genes make up a modules, you can look at the $colors slot. 
-gene_module_key <- tibble::enframe(bwnet$colors, name = "gene", value = "module") %>%
+
+
+
+#If you want to know which of your genes make up a modules, you can look at the $colors slot.
+gene_module_key <- as.data.frame(datOutput) %>%
   # Let's add the `ME` part so its more clear what these numbers are and it matches elsewhere
-  dplyr::mutate(module = paste0("ME", module))
+  dplyr::mutate(colors = paste0("ME", colors))
 gene_module_key <- gene_module_key %>%
-  dplyr::filter(module == "MElightcyan")
+  dplyr::filter(colors == "MEdarkgrey")
 
 head(gene_module_key)
 
 #Save the gene to module key ato a TSV file
-readr::write_csv(gene_module_key,
-                 file = file.path("wgcna-results", "brain_wgcna_module_lightcyan.csv")
-)
+#this list was used to identify annotated genes on the command line
+readr::write_csv(gene_module_key, "brain_wgcna_module_darkgrey.csv")
+
+write.csv(net$colors, "module-genes_brain_WGCNA.csv")
 
 #############################################################################
 
-#Make a custom heatmap function
+#Make a custom heatmap function for specific modules
 
 make_module_heatmap <- function(module_name,
-                                expression_mat = normalized_counts,
-                                metadata_df = metadata,
+                                expression_mat = xx,
+                                metadata_df = metaData,
                                 gene_module_key_df = gene_module_key,
                                 module_eigengenes_df = module_eigengenes) {
   # Create a summary heatmap of a given module.
@@ -328,33 +432,33 @@ make_module_heatmap <- function(module_name,
   
   # Set up the module eigengene with its Treatment
   #module_eigengene <- module_eigengenes_df %>%
-    #dplyr::select(all_of(module_name)) %>%
-    #tibble::rownames_to_column("FishID")
+  #dplyr::select(all_of(module_name)) %>%
+  #tibble::rownames_to_column("FishID")
   
   # Set up column annotation from metadata
   col_annot_df <- metadata_df %>%
     # Only select the treatment and sample ID columns
-    dplyr::select(Treatment, treatment, FishID) %>%
+    dplyr::select(Treatment, FishID) %>%
     # Add on the eigengene expression by joining with sample IDs
     #dplyr::inner_join(module_eigengene, by = "FishID") %>%
     # Arrange by patient and time point
-    dplyr::arrange(treatment, FishID) %>%
+    dplyr::arrange(Treatment, FishID) %>%
     # Store sample
     tibble::column_to_rownames("FishID")
   
   # Create the ComplexHeatmap column annotation object
   col_annot <- ComplexHeatmap::HeatmapAnnotation(
     # Supply treatment labels
-    treatment = col_annot_df$treatment,
+    treatment = col_annot_df$Treatment,
     # Add annotation barplot
     #module_eigengene = ComplexHeatmap::anno_barplot(dplyr::select(col_annot_df, module_name)),
     # Pick colors for each experimental group in treatment
-    col = list(treatment = c("control / high complexity" = "#009E73", "control / low complexity" = "#56B4E9", "heatwave / high complexity" = "#E69F00", "heatwave / low complexity" = "#D55E00"))
+    col = list(treatment = c("CHC" = "#009E73", "CLC" = "#56B4E9", "HWHC" = "#E69F00", "HWLC" = "#D55E00"))
   )
   
   # Get a vector of the Ensembl gene IDs that correspond to this module
   module_genes <- gene_module_key_df %>%
-    dplyr::filter(module == module_name) %>%
+    dplyr::filter(colors == module_name) %>%
     dplyr::pull(gene)
   
   # Set up the gene expression data frame
@@ -380,7 +484,7 @@ make_module_heatmap <- function(module_name,
   # Create a color function based on standardized scale
   color_func <- circlize::colorRamp2(
     c(-2, 0, 2),
-    c("#56B4E9", "lightcyan", "#D55E00")
+    c("blue", "white", "red")
   )
   
   # Plot on a heatmap
@@ -402,16 +506,13 @@ make_module_heatmap <- function(module_name,
 }
 
 #Specify which module you want to investigate
-module_lightcyan_heatmap <- make_module_heatmap(module_name = "MElightcyan")
+module_darkgrey_heatmap <- make_module_heatmap(module_name = "MEdarkgrey")
 # Print out the plot
-module_lightcyan_heatmap
+module_darkgrey_heatmap
 
 #Save plot to png
-pdf(file.path("results", "brain_module_lightcyan_heatmap.pdf"))
-module_lightcyan_heatmap
+pdf("darkgrey_heatmap.pdf")
+module_darkgrey_heatmap
 dev.off()
 
-##############################################################################
-################################# DENDROGRAM #################################
-##############################################################################
-#https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/FemaleLiver-02-networkConstr-man.pdf
+

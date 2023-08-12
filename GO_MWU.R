@@ -15,33 +15,7 @@
 
 ################################################################
 # First, press command-D on mac or ctrl-shift-H in Rstudio and navigate to the directory containing scripts and input files. Then edit, mark and execute the following bits of code, one after another.
-setwd("C:/Users/allys/Box/Auburn/Scientific Writing/Analyses and Data/GO")
-
-
-#Remove NAs from DESeq2 results
-measures <- read.csv('LRT_All.csv', header = TRUE, sep = ",")
-measures <- na.omit(measures)
-write.csv(measures, file="LRT_All.csv", quote=FALSE)
-
-measures <- read.csv('LRT_CvsHW.csv', header = TRUE, sep = ",")
-measures <- na.omit(measures)
-write.csv(measures, file="LRT_CvsHW.csv", quote=FALSE)
-
-measures <- read.csv('Wald_LC_CvsHW.csv', header = TRUE, sep = ",")
-measures <- na.omit(measures)
-write.csv(measures, file="Wald_LC_CvsHW.csv", quote=FALSE)
-
-measures <- read.csv('Wald_HC_CvsHW.csv', header = TRUE, sep = ",")
-measures <- na.omit(measures)
-write.csv(measures, file="Wald_HC_CvsHW.csv", quote=FALSE)
-
-measures <- read.csv('Wald_CLCvsHWHC.csv', header = TRUE, sep = ",")
-measures <- na.omit(measures)
-write.csv(measures, file="Wald_CLCvsHWHC.csv", quote=FALSE)
-
-measures <- read.csv('Wald_CHCvsHWLC.csv', header = TRUE, sep = ",")
-measures <- na.omit(measures)
-write.csv(measures, file="Wald_CHCvsHWLC.csv", quote=FALSE)
+setwd("C:/Users/allys/Box/Bernal_lab/Ally/Chapter1/Analyses/GO")
 
 
 #install.packages("ape")
@@ -50,10 +24,10 @@ library("ape")
 
 
 # Edit these to match your data file names: 
-input="Wald_LC_CvsHW.csv" # two columns of comma-separated values: gene id, continuous measure of significance. To perform standard GO enrichment analysis based on Fisher's exact test, use binary measure (0 or 1, i.e., either sgnificant or not).
+input="WGCNA_grey60_fishers.csv" # two columns of comma-separated values: gene id, continuous measure of significance. To perform standard GO enrichment analysis based on Fisher's exact test, use binary measure (0 or 1, i.e., either sgnificant or not).
 goAnnotations="GO_table.tab" # two-column, tab-delimited, one line per gene, multiple GO terms separated by semicolon. If you have multiple lines per gene, use nrify_GOtable.pl prior to running this script.
 goDatabase="go.obo" # download from http://www.geneontology.org/GO.downloads.ontology.shtml
-goDivision="BP" # either MF, or BP, or CC
+goDivision="CC" # either MF, or BP, or CC
 source("gomwu.functions.R")
 
 
@@ -65,9 +39,9 @@ gomwuStats(input, goDatabase, goAnnotations, goDivision,
            perlPath="C:/Strawberry/perl/bin/perl.exe",
            largest=0.1,
            smallest=5,
-           clusterCutHeight=0.25
+           clusterCutHeight=0.25,
            #	Alternative="g" # by default the MWU test is two-tailed; specify "g" or "l" of you want to test for "greater" or "less" instead. 
-           #	Module=TRUE,Alternative="g" # un-remark this if you are analyzing a SIGNED WGCNA module (values: 0 for not in module genes, kME for in-module genes). In the call to gomwuPlot below, specify absValue=0.001 (count number of "good genes" that fall into the module)
+           Module=TRUE,Alternative="g" # un-remark this if you are analyzing a SIGNED WGCNA module (values: 0 for not in module genes, kME for in-module genes). In the call to gomwuPlot below, specify absValue=0.001 (count number of "good genes" that fall into the module)
            #	Module=TRUE # un-remark this if you are analyzing an UNSIGNED WGCNA module 
 )
 # do not continue if the printout shows that no GO terms pass 10% FDR.

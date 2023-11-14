@@ -1,7 +1,8 @@
 #### This repository corresponds with transcriptome annotation and data analysis for the manuscript "Molecular plasticity to ocean warming and habitat loss in a coral reef fish"
 - linked doi when available
 
-![Treatments_ASax](https://github.com/allyswank/Abudefduf-Brains/assets/91483379/30651a8f-9bd3-4c5b-ac8b-d9c7d1580ccc)
+![image](https://github.com/allyswank/Abudefduf-Brains/assets/91483379/ec99c069-ccf6-4a05-b561-eb5f87b2100d)
+
 
 
 # Contents

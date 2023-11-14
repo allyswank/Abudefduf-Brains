@@ -16,6 +16,7 @@
 ## Sequence Processing
 Total RNA samples from *Abudefduf saxatilis* were shipped to the University of Texas at Austin Genomic Sequencing and Analysis Facility for Tag-Seq library preparation (following Meyer et al. 2011) and sequencing using the Illumina NovaSeq6000. 
 
+* Raw Tag-seq reads and transcriptome assembly accessions can be found under SRA Bioproject PRJNA1009081.
 * Sequence quality was assessed with FastQC v0.11.9: `fastqc` and `fastqc_trimmed`
 * We used the program cutadapt v1.13 to trim Illumina adapters: `clean`
 * Reads were mapped to the reference transcriptome with Bowtie2 v2.3.: `maps`

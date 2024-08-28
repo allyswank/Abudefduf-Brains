@@ -1,5 +1,5 @@
 #### This repository corresponds with transcriptome annotation and data analysis for the manuscript "Molecular plasticity to ocean warming and habitat loss in a coral reef fish"
-- linked doi when available
+- https://academic.oup.com/jhered/advance-article-abstract/doi/10.1093/jhered/esae024/7656594
 
 ![image](https://github.com/allyswank/Abudefduf-Brains/assets/91483379/ec99c069-ccf6-4a05-b561-eb5f87b2100d)
 
